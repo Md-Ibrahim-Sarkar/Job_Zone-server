@@ -2,11 +2,14 @@ const express = require("express");
 const cors = require("cors");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 require("dotenv").config();
-
+const jwt = require('jsonwebtoken');
 const port = process.env.PORT || 7000;
 const app = express();
 
-app.use(cors());
+app.use(cors({
+  origin: ["http://localhost:5173", "https://job-zone-8abf4.firebaseapp.com"],
+  credentials: true,
+}));
 app.use(express.json());
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.kt5fy.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
@@ -28,6 +31,38 @@ async function run() {
     const jobBids = database.collection('jobBids')
 
 
+
+    // ***  jwt token
+
+    app.post('/jwt', async (req, res) => {
+      const user = req.body
+      const token = jwt.sign(user, process.env.SECTET_KEY, { expiresIn: '1h' })
+      res.cookie('token', token, {
+        httpOnly: true,
+        secure: false,
+        sameSite: 'strict'
+      }).send({ token: token })
+    })
+
+
+    //  clear  cookies
+
+    app.get('/clear-cookie', (req, res) => {
+      res.clearCookie('token', {
+        secure: false,
+        sameSite: 'strict'
+      }).send({ message: 'Logged out' })
+    })
+
+
+    app.get('/clear-cookie', (req, res) => {
+      res.clearCookie('token', {
+        secure: false,        // Ensures the cookie can be cleared over non-HTTPS
+        sameSite: 'strict'    // Matches the original cookie's attributes
+      }).send({ message: 'Logged out' });
+    });
+
+
     // ********************   Add a jobs to the database ****************
 
     app.post('/jobs', async (req, res) => {
@@ -43,6 +78,33 @@ async function run() {
       res.send(result)
     })
 
+
+    // ******************************* get all jobs for filter *******************************
+
+
+    app.get('/all-jobs', async (req, res) => {
+
+      const filter = req.query.filter
+      const search = req.query.search
+      const sort = req.query.sort
+
+
+      let options = {}
+
+      if (sort) options = {
+        sort: { dateLine: sort === 'asc' ? 1 : -1 }
+      }
+      let query = {
+        job_title: {
+          $regex: search,
+          $options: 'i'
+        }
+      };
+      if (filter) query.category = filter;
+      const result = await jobs.find(query, options).toArray()
+
+      res.send(result)
+    })
 
     // ************************* get email base jobs data ********************************
 
@@ -120,6 +182,23 @@ async function run() {
       const result = await jobBids.find({ buyer: email }).toArray()
       res.send(result)
     })
+
+    // change a bid request
+
+    app.patch('/bids/:id', async (req, res) => {
+      const id = req.params.id;
+      const { status } = req.body;
+      const query = { _id: new ObjectId(id) }
+      const updatedBidRequest = { $set: { status } }
+      const result = await jobBids.updateOne(query, updatedBidRequest);
+      res.send(result);
+
+    })
+
+
+
+
+
 
 
 
