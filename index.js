@@ -5,12 +5,33 @@ require("dotenv").config();
 const jwt = require('jsonwebtoken');
 const port = process.env.PORT || 7000;
 const app = express();
+var cookieParser = require('cookie-parser')
 
 app.use(cors({
   origin: ["http://localhost:5173", "https://job-zone-8abf4.firebaseapp.com"],
   credentials: true,
 }));
 app.use(express.json());
+app.use(cookieParser())
+
+
+
+const verifyToken = (req, res, next) => {
+  const token = req.cookies.token
+
+  if (!token) {
+    return res.status(401).send({ message: 'No token provided.' });
+  }
+
+  jwt.verify(token, process.env.SECTET_KEY, (err, decoded) => {
+    if (err) {
+      return res.status(403).send({ message: 'Token is not valid.' });
+    }
+    console.log(decoded);
+    req.user = decoded.email;
+    next()
+  })
+}
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.kt5fy.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
@@ -32,7 +53,7 @@ async function run() {
 
 
 
-    // ***  jwt token
+    // ******************  jwt token  start
 
     app.post('/jwt', async (req, res) => {
       const user = req.body
@@ -54,14 +75,7 @@ async function run() {
       }).send({ message: 'Logged out' })
     })
 
-
-    app.get('/clear-cookie', (req, res) => {
-      res.clearCookie('token', {
-        secure: false,        // Ensures the cookie can be cleared over non-HTTPS
-        sameSite: 'strict'    // Matches the original cookie's attributes
-      }).send({ message: 'Logged out' });
-    });
-
+    // ***************************** end
 
     // ********************   Add a jobs to the database ****************
 
@@ -108,8 +122,13 @@ async function run() {
 
     // ************************* get email base jobs data ********************************
 
-    app.get('/jobs/:email', async (req, res) => {
+    app.get('/jobs/:email', verifyToken, async (req, res) => {
       const email = req.params.email;
+      const user = req.user
+
+      if (email !== user) {
+        return res.status(403).send({ message: 'Not authorized to access this user\'s data.' });
+      }
       const result = await jobs.find({ 'buyer.email': email }).toArray()
       res.send(result)
     })
@@ -178,6 +197,7 @@ async function run() {
 
     //  bids request
     app.get('/bids-request/:email', async (req, res) => {
+
       const email = req.params.email;
       const result = await jobBids.find({ buyer: email }).toArray()
       res.send(result)
