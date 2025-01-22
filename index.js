@@ -8,7 +8,7 @@ const app = express();
 var cookieParser = require('cookie-parser')
 
 app.use(cors({
-  origin: ["http://localhost:5173", "https://job-zone-8abf4.firebaseapp.com"],
+  origin: ["http://localhost:5173", "https://jobzone-eight.vercel.app"],
   credentials: true,
 }));
 app.use(express.json());
